@@ -13,7 +13,7 @@ from app.routes.notifications import router as notification_router
 from app.routes.activity_logs import router as activity_log_router
 from app.routes.preferences import router as preference_router
 from app.routes.team_tasks import router as team_task_router
-
+from app.routes.ai import router as ai_router
 app = FastAPI(
     title="Planova Task Management API",
     description="Backend APIs for task management, subtasks, tags, reminders, notifications, and administration",
@@ -69,7 +69,8 @@ app.include_router(admin_router)
 
 # Enterprise Team Collaboration & Task Assignments
 app.include_router(team_task_router)
-
+# AI Natural Language Task Parser
+app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])
 
 @app.get("/", tags=["default"])
 def home():

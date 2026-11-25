@@ -328,12 +328,7 @@ function AuthenticatedApp({ onNavigateHome }) {
             }}
           />
 
-          <TaskWorkspace
-            key={`all-${refreshKey}`}
-            onEdit={handleEdit}
-            onAddTask={() => handleAdd()}
-            initialStatusFilter="All"
-          />
+          
 
           <TaskWorkspace
             key={`all-${refreshKey}`}
