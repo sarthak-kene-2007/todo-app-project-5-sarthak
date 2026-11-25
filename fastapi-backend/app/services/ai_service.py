@@ -10,7 +10,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 # 2. Setup Grok (uses xAI's OpenAI-compatible API)
 xai_client = OpenAI(
     api_key=os.getenv("XAI_API_KEY", ""),
-    base_url="https://api.x.ai/v1"
+    base_url="https://api.groq.com/openai/v1"
 )
 
 SYSTEM_PROMPT = """
