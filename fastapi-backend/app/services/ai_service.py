@@ -74,21 +74,87 @@ def parse_with_grok(prompt: str, context: str) -> ParsedTask:
     data = json.loads(clean_text)
     data["ai_used"] = f"Groq ({model_to_use})"
     return ParsedTask(**data)
+import urllib.request
+import urllib.error
+
+def get_gemini_model_and_version(api_key: str):
+    """Automatically queries Google's ModelService to find the exact available Gemini model."""
+    for api_ver in ["v1beta", "v1"]:
+        try:
+            url = f"https://generativelanguage.googleapis.com/{api_ver}/models?key={api_key}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                models = [
+                    m["name"].replace("models/", "")
+                    for m in data.get("models", [])
+                    if "generateContent" in m.get("supportedGenerationMethods", [])
+                ]
+                print(f"Available Gemini models on your key ({api_ver}):", models)
+                for preferred in [
+                    "gemini-3.8-flash",
+                    "gemini-2.0-flash",
+                    "gemini-1.5-flash",
+                    "gemini-pro"
+                ]:
+                    if preferred in models:
+                        return preferred, api_ver
+                if models:
+                    # Filter out retired models like gemini-2.5-flash
+                    active = [m for m in models if "2.5" not in m]
+                    return (active[0] if active else "gemini-3.8-flash"), api_ver
+        except Exception as e:
+            print(f"ListModels error for {api_ver}:", e)
+    return "gemini-3.8-flash", "v1beta"
 
 def parse_with_gemini(prompt: str, context: str) -> ParsedTask:
-    response = gemini_client.chat.completions.create(
-        model="gemini-1.5-flash",
-        messages=[
-            {"role": "system", "content": f"{SYSTEM_PROMPT}\n{context}"},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.1
-    )
-    clean_text = response.choices[0].message.content.strip().replace("```json", "").replace("```", "")
-    data = json.loads(clean_text)
-    data["ai_used"] = "Google Gemini"
-    return ParsedTask(**data)
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    
+    # Priority cascade: try newer flash, then stable flash, then lighter 8b
+    candidate_models = [
+        ("gemini-3.8-flash", "v1beta"),
+        ("gemini-2.0-flash", "v1beta"),
+        ("gemini-1.5-flash-8b", "v1beta"),
+        ("gemini-1.5-pro", "v1beta"),
+    ]
+    
+    for model_name, api_ver in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model_name}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": f"{SYSTEM_PROMPT}\n{context}\nUser task: {prompt}"
+                }]
+            }],
+            "generationConfig": {
+                "responseMimeType": "application/json"
+            }
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                content_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                task_dict = json.loads(content_text)
+                task_dict["ai_used"] = f"Google Gemini ({model_name})"
+                return ParsedTask(**task_dict)
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8")
+            print(f"Gemini {model_name} returned {e.code} (High demand/error), trying next model in cascade...")
+            continue
+        except Exception as e:
+            print(f"Connection error on {model_name}:", e)
+            continue
 
+    # Seamless Fallback: If all Google Gemini servers are experiencing 503 load, fulfill via Groq
+    print("All Gemini models temporarily overloaded (503). Fulfilling task via Groq fallback...")
+    fallback_task = parse_with_grok(prompt, context)
+    fallback_task.ai_used = "Groq (Gemini High-Demand Fallback)"
+    return fallback_task
 def extract_task(prompt: str, model: str, user_date: str, user_time: str, timezone: str) -> ParsedTask:
     context = f"Reference today: {user_date}, current time: {user_time}, timezone: {timezone}."
     if model == "grok":
