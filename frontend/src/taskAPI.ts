@@ -130,3 +130,20 @@ export const categoryApi = {
     });
   },
 };
+export async function parseNaturalLanguageTask(prompt: string, model: "gemini" | "grok") {
+  const now = new Date();
+  const user_date = now.toISOString().split("T")[0];
+  const user_time = now.toTimeString().split(" ")[0];
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return await request<CreateTaskRequest>("/api/v1/ai/parse-task", {
+    method: "POST",
+    body: JSON.stringify({
+      prompt,
+      model,
+      user_date,
+      user_time,
+      timezone,
+    }),
+  });
+}

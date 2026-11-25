@@ -1,3 +1,4 @@
+import NaturalLanguageInput from "./components/NaturalLanguageInput";
 import { useState, useEffect, useCallback } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Layout from "./components/Layout";
@@ -319,6 +320,20 @@ function AuthenticatedApp({ onNavigateHome }) {
               <span>New Task</span>
             </button>
           </div>
+                    {/* Natural Language Task Input with AI Selection */}
+          <NaturalLanguageInput
+            onTaskCreated={() => {
+              setRefreshKey((prev) => prev + 1);
+              loadDashboardTasks();
+            }}
+          />
+
+          <TaskWorkspace
+            key={`all-${refreshKey}`}
+            onEdit={handleEdit}
+            onAddTask={() => handleAdd()}
+            initialStatusFilter="All"
+          />
 
           <TaskWorkspace
             key={`all-${refreshKey}`}
